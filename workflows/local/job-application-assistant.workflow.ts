@@ -220,7 +220,7 @@ export class JobApplicationAssistantWorkflow {
     })
     MemoryApplicationPack = {
         sessionIdType: 'customKey',
-        sessionKey: '=application_pack_{{ $execution.id }}',
+        sessionKey: '=application_pack_{{ $execution.id }}_{{ $itemIndex }}',
         contextWindowLength: 6,
     };
 
@@ -906,6 +906,7 @@ Rules:
 2) Never invent or hallucinate offers. Always rely on JOB OFFERS in your context.
 3) Return max {{ $('⚙️ Configuration1').item.json.maxJobsToProcess }} jobs.
 4) If no match simply return "Aucune offre correspondante"
+5) TECH STACK FIT IS MANDATORY, NOT JUST TITLE MATCH: a job title containing "Backend Developer" or similar is NOT enough by itself. Read the offer's description and prioritize offers whose primary tech stack matches coreSkills (.NET, C#, ASP.NET, Microsoft stack). Deprioritize or exclude offers that primarily require a fundamentally different stack (e.g. Ruby on Rails, Python-only, PHP-only, Java-only) even if the title looks like a match, unless there are no better-fitting offers available.
 
 Return JSON object with key 'jobs' as array of objects:
 - jobId (from job_id)

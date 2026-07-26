@@ -1,76 +1,46 @@
 # n8n Job Search Automation — Proje Notları
 
 ## Amaç
-GitHub'dan alınan "Job Application Assistant" n8n workflow'unu manuel tetiklemeli (Manual Trigger) bir iş başvurusu otomasyonuna dönüştürmek. Orijinal workflow Fransa'ya özgü France Travail API'sini kullanıyordu; bu proje onu SerpAPI (Google Jobs) tabanlı, Türkiye/İstanbul odaklı bir sürüme çeviriyor.
+GitHub'dan alınan "Job Application Assistant" n8n workflow'unu manuel tetiklemeli (Manual Trigger) bir iş başvurusu otomasyonuna dönüştürmek. Orijinal workflow Fransa'ya özgü France Travail API'sini kullanıyordu; bu proje onu SerpAPI (Google Jobs) tabanlı bir sürüme çevirdi. Teknik detaylar için `n8n.md`'ye bak — burası sadece proje geçmişi/karar günlüğü.
 
-## Mevcut Durum
-- `job-search-workflow.json` dosyası güncellendi: France Travail bağımlılığı kaldırıldı, SerpAPI (Google Jobs) entegrasyonu eklendi.
-- CV/GitHub pipeline (branch oluşturma, YAML düzenleme, GitHub Action ile PDF derleme) **kaldırıldı** — 51 node'dan 30 node'a indirildi. Bu pipeline'ı sonradan geri eklemek istersek ayrı bir görev olarak ele alınacak.
-- `⚙️ Configuration1` node'undaki GitHub değişkenleri (githubOwner, githubToken, vb.) şu an kullanılmıyor ama pipeline'ı geri eklersek diye dosyada bırakıldı.
-- Şu anki e-posta gönderim adımı (`📧 Send: Application Output`) PDF eki göndermiyor; sadece HTML gövdeli başvuru metni gönderiyor.
+## Mevcut Durum (özet)
 
-## Yapılacaklar (öncelik sırasıyla)
+Workflow **çalışıyor** ve n8n'de deploy edilmiş durumda (remote ID: `1RApu6UgRmtLGFyT`, local: `workflows/local/job-application-assistant.workflow.ts`). Kurulum aşaması tamamlandı:
+- n8n Docker instance ayakta (`localhost:5678`), n8n-as-code (`n8nac`) ile yönetiliyor.
+- Tüm credential'lar bağlı: SerpAPI (`httpQueryAuth`), OpenAI (`gpt-4o-mini`), Jina AI, Gmail OAuth2, Google Sheets OAuth2.
+- Manual Trigger'a geçildi, Gemini yerine OpenAI kullanılıyor.
+- `⚙️ Configuration1` gerçek verilerle dolduruldu (CV GitHub'da public repo olarak barındırılıyor: `https://github.com/denizddogru/cv`).
+- Henüz **git version kontrolüne alınmadı** — proje klasörü şu an sadece local git repo (`git init` + 1 commit), **GitHub'a push edilmedi** (kullanıcı push'tan önce bazı bug'ları çözmek istedi).
 
-### 1. n8n instance kurulumu
-- [ ] Docker ile n8n ayağa kaldır (n8n-as-code plugin ile birlikte çalışacak şekilde)
-- [ ] `job-search-workflow.json` dosyasını n8n'e import et (Import from File)
-- [ ] Workflow adını, tag'lerini gerekiyorsa düzenle
+## Önemli Kararlar ve Kök Neden Analizleri (kronolojik)
 
-### 2. Credential kurulumu (n8n arayüzünden, OAuth gerektirenler tarayıcı onayı ister)
-- [ ] **SerpAPI**: Query Auth credential oluştur, key adı `api_key`, değer SerpAPI hesabından alınan anahtar. `Get job results` node'undaki credential referansını (`REPLACE_WITH_SERPAPI_CREDENTIAL_ID`) bu yeni credential ile değiştir.
-- [ ] **OpenAI**: $5 kredi mevcut. `Google Gemini Chat Model` node'unu `OpenAI Chat Model` node'u ile değiştir, model olarak `gpt-4o-mini` seç (maliyet kontrolü için). Bu node 6 farklı ajana bağlı (`ai_languageModel` bağlantılarına dikkat — hepsini yeni node'a yeniden bağlamak gerekiyor).
-- [ ] **Gmail**: OAuth2 credential oluştur, `📧 Send: Application Output` node'una bağla, `sendTo` alanını gerçek adresle güncelle.
-- [ ] **Google Sheets**: OAuth2 credential oluştur, `Get already processed jobs urls` ve `Append row in sheet` node'larındaki `documentId`/`sheetName` alanlarını gerçek Google Sheet ile değiştir (şu an placeholder `xxxx`).
-- [ ] **Jina AI**: API key credential oluştur, `📖 Jina: Read Profile Source` node'una bağla (CV/LinkedIn/GitHub sayfalarını okumak için).
+Bunlar tekrar keşfedilmemesi gereken, zaten çözülmüş sorunlar:
 
-### 3. Kişisel/işlevsel yapılandırma
-- [ ] `⚙️ Configuration1` node'undaki tüm placeholder değerleri gerçek verilerle değiştir: candidateName, candidateEmail, candidatePhone, targetLocation, remotePreference, minimumSalaryAnnual, maxJobsToProcess, cvUrlWeb, linkedinUrl, githubUrl.
-- [ ] `targetCountryCode` (tr) ve `targetLanguageCode` (tr) değerlerini SerpAPI'nin `gl`/`hl` parametrelerine uygunluğu açısından teyit et.
-- [ ] Tetikleyiciyi `🕘 Schedule Trigger`'dan **Manual Trigger**'a çevir (kullanıcı manuel tetikleme istiyor). Schedule Trigger node'unu Manual Trigger ile değiştir, bağlantıyı `⚙️ Configuration1`'e yeniden kur.
+1. **`queryAuth` credential type geçersiz** → doğrusu `httpQueryAuth`. SerpAPI node'unda düzeltildi.
+2. **SerpAPI `gl=tr` desteklenmiyor** (`"Unsupported tr country - gl parameter"`) → `gl` parametresi tamamen kaldırıldı, sonra tekrar eklendi ama bu sefer `gl=us` olarak (bkz. madde 4).
+3. **`alwaysOutputData: true`** gerekiyor `Get already processed jobs urls` node'unda — sheet boşken 0 item dönüyor, bu da n8n'in downstream node'ları (Remove already processed jobs, Agent: Jobs selection, ...) hiç çalıştırmadan atlamasına yol açıyordu.
+4. **Google'ın "Jobs" özelliği Türkiye'de hiç yok** (Google'ın resmi desteklenen ülke listesinde Türkiye yok — `gl=tr` denemesi bu yüzden zaten baştan kaybedilmiş bir yaklaşımdı). Çözüm: `gl=us`, `hl=en` sabitlendi, `location` parametresi kaldırıldı, arama sorguları sadece `"remote"` odaklı üretiliyor artık. Yani bu araç **Türkiye'de yerel/hibrit ilan bulamaz**, sadece uluslararası remote ilanlar bulur — bu bilinçli bir tasarım kısıtı, bug değil.
+5. **"Context window exceeded" hatası** (`Agent: Jobs selection`) → SerpAPI'nin ham ilan objeleri çok ağırdı (job_highlights, apply_options, extensions, thumbnail dahil). `Remove already processed jobs` node'unda ilanlar kırpıldı (sadece gerekli alanlar), aday sayısı 25 ile sınırlandı, sorgu sayısı 6-10'dan 4-6'ya düşürüldü.
+6. **Gerçek başvuru linki bulunamıyor sorunu** — ilk versiyon `share_link` kullanıyordu (Google'ın kendi iç "job carousel" deep-link'i, tek başına açıldığında çalışmıyor). Düzeltildi: artık SerpAPI'nin `apply_options[0].link` alanı (gerçek iş ilanı sitesi linki, örn. Indeed/Monster/LinkedIn) kullanılıyor.
+7. **`Agent: Generate Application` deprecated "agent" parametresi** (`agent: 'conversationalAgent'`) hem sürekli validation uyarısına hem de "Model output doesn't fit required format" hatalarına yol açıyordu. Node v1.7 → v3.1'e yükseltildi, deprecated parametre kaldırıldı.
+8. **E-posta/Sheets mimarisi değişti**: Başlangıçta her ilan için ayrı ayrı e-posta + Sheets satırı loop içinde atılıyordu. Kullanıcı tercih etti: artık loop sadece cover letter üretiyor, loop bittikten sonra **tek bir özet (dijest) e-posta** + Sheets'e **toplu batch yazma** yapılıyor (`BuildDigestEmail` code node'u eklendi).
+9. **Google Sheets "Column names were updated after the node's setup" hatası** — n8n'in Sheets node'u header sırasını kendi içinde cache'liyor; sheet'teki gerçek header sırası ile node'un beklediği sıra uyuşmazsa hata veriyor. **Kalıcı çözüm yerine manuel talimat verildi**: sheet'in 1. satırına tam bu sırayla yazılması gerekiyor: `Tarih, URLS, İlan Adı, Şirket, Site, Çalışma Şekli, Ülke`.
 
-### 4. Test ve doğrulama
-- [ ] `🔎 Agent: Search Queries generation` node'unu tek başına çalıştırıp üretilen sorguların mantıklı olduğunu kontrol et (6-10 adet, tekrar yok, İstanbul/hybrid/remote varyasyonları doğru).
-- [ ] `Get job results` node'unun SerpAPI'den gerçek veri döndürdüğünü doğrula (jobs_results dizisi dolu mu).
-- [ ] `🔎 Agent: Jobs selection` node'unun `jobs_results` alanlarını (job_id, title, company_name, location, description, related_links) doğru okuduğunu kontrol et.
-- [ ] Uçtan uca bir manuel çalıştırma yap, e-postanın doğru içerik ve formatla geldiğini kontrol et.
-- [ ] Google Sheets'e satırın doğru eklendiğini ve bir sonraki çalıştırmada aynı ilanın tekrar işlenmediğini doğrula.
+## Bilinen, Henüz Çözülmemiş Sorunlar (tartışıldı, karar bekliyor)
 
-### 5. Sonraki adım (opsiyonel, ertelendi)
-- [ ] CV/GitHub pipeline'ını (branch oluşturma, YAML düzenleme, GitHub Action ile PDF derleme, PDF'i e-postaya ekleme) geri eklemek istenirse, orijinal workflow'daki ilgili ~15 node referans alınarak yeniden kurulacak. Bu adım şimdilik kapsam dışı.
+1. **Memory bleed (`Agent: Generate Application`)** — `MemoryApplicationPack.sessionKey` execution başına tek; loop'taki her ilan aynı hafızayı paylaşıyor → sonraki ilanlarda prompt token sayısı katlanıyor (gözlemlenen: 1.5K → 16K token), bazen model boş/geçersiz JSON döndürüyor ("Model output doesn't fit required format" hatasının kök nedeni). **Önerilen düzeltme**: `sessionKey`'e `$itemIndex` eklemek, henüz uygulanmadı.
+2. **İlan seçim kalitesi** — `Agent: Jobs selection`, ilan başlığına bakıyor ama açıklamadaki gerçek teknoloji yığınını (örn. Ruby on Rails vs .NET/C#) yeterince ağırlıklandırmıyor. Örnek: "Lucky Rabbit" şirketi "Backend Developer" başlıklı ama Ruby on Rails istiyor, .NET/C# adayı için zayıf eşleşme. **Önerilen düzeltme**: sistem mesajına tech-stack ağırlıklandırma kuralı eklemek, henüz uygulanmadı.
+3. **Gmail foldering** — Gelen özet e-postaların otomatik bir Gmail etiketine/klasörüne (`n8n/job application`) düşürülmesi isteniyor. Workflow'a dokunmadan Gmail tarafında filtre kurulumu önerildi, henüz uygulanmadı/teyit edilmedi.
+4. **Git/GitHub** — Proje local'de git repo, henüz GitHub'a push edilmedi. Kullanıcı önce yukarıdaki bug'ları çözmek istiyor.
 
-## Teknik Notlar
-- SerpAPI Google Jobs endpoint: `https://serpapi.com/search?engine=google_jobs`, parametreler: `q`, `location`, `gl`, `hl`, `api_key`.
-- SerpAPI free tier ayda 250 arama; manuel/seyrek tetikleme için yeterli, günlük otomatik çalıştırmada hızla tükenir.
-- Adzuna API Türkiye'yi desteklemediği için (12 ülke listesinde yok) kullanılmadı.
-- LinkedIn için resmi bir Job Search API yok; üçüncü parti scraper'lar LinkedIn kullanım şartlarına aykırı, bu yüzden tercih edilmedi.
-- Workflow dosyasındaki tüm credential ID'leri (`id` alanları) orijinal sahibine ait — n8n'e import ettikten sonra her credential'ı yeniden seçmek/oluşturmak gerekiyor.
+## Teknik Notlar (özet — detay için `n8n.md`)
+- SerpAPI free tier ayda 250 arama.
+- Adzuna ve LinkedIn resmi API'leri Türkiye/kullanım şartları nedeniyle tercih edilmedi.
+- E-posta gönderimi ücretsiz (kullanıcının kendi Gmail hesabı, OAuth2) — ücretli bir transactional email servisi yok. Tek ücretli bileşen OpenAI (gpt-4o-mini, token bazlı).
+- CV: `https://raw.githubusercontent.com/denizddogru/cv/main/DenizDogruCV.pdf` (public repo, Jina AI'ın okuyabilmesi için).
 
-## Bu Workflow'un Amacı (What it does)
-
-1. Profilini kaynaklardan okur (LinkedIn, portfolyo, vb.) — Jina AI üzerinden
-2. Beceri/tercihlerine göre arama sorguları üretir
-3. API üzerinden iş ilanlarını çeker, daha önce işlenmiş olanları eler (Google Sheets ile dedup)
-4. AI en uygun eşleşmeleri seçer
-5. Her ilan için özelleştirilmiş bir cover letter + başvuru paketi üretir
-6. Başvuruları Gmail üzerinden e-posta ile gönderir
-7. Her şeyi bir Google Sheet'e loglar
-
-## Kullanıcının (Benim) Yapması Gerekenler
-
-### Hesap / API key işlemleri
-- [ ] **SerpAPI**: Hesap oluştur, API key al (serpapi.com). Free tier ayda 250 arama.
-- [ ] **Gemini (veya OpenAI)**: Google AI Studio'dan Gemini API key al — mevcut workflow Gemini kullanıyor, değiştirmezsek bu yeterli. OpenAI'a geçersek platform.openai.com'daki $5 kredi ile API key oluşturulacak.
-- [ ] **Google Sheets**: Boş bir Google Sheet oluştur ("job offers processed" gibi), sütun adı `URLS` olacak şekilde bir sekme hazırla. n8n'de Google OAuth2 credential'ı bu hesapla bağla.
-- [ ] **Gmail**: n8n'de Google OAuth2 credential'ı bağla (başvuru e-postalarının gönderileceği hesap).
-- [ ] **Jina AI**: jina.ai üzerinden ücretsiz API key al (profil sayfalarını okumak için).
-
-### İçerik / profil hazırlığı
-- [ ] **CV**: CV'ni yükle. Mevcut workflow CV'yi bir URL üzerinden (`cvUrlWeb`) okuyor — yani CV'nin herkese açık bir web sayfası/PDF linki olması gerekiyor (örneğin kişisel site, Google Drive paylaşım linki, veya GitHub'da barındırılan bir sayfa). Dosya olarak yüklemek istersen bunun için ayrı bir adım (Google Drive/S3 üzerinden link üretme) eklememiz gerekecek — bunu birlikte konuşalım.
-- [ ] **Cover letter**: Şu anki workflow cover letter'ı senin yazdığın bir şablondan değil, AI'ın CV/profil verisinden üretmesiyle oluşturuyor (`✍️ Agent: Generate Application` node'u). Eğer kendi cover letter şablonunu esas alıp AI'a onu uyarlatmak istersen, şablonunu paylaşman ve node prompt'una eklememiz gerekiyor. Şu an için varsayım: AI sıfırdan üretiyor.
-- [ ] **LinkedIn/GitHub/portfolyo linkleri**: `⚙️ Configuration1` node'undaki `linkedinUrl`, `githubUrl`, `cvUrlWeb` alanlarına gerçek, herkese açık linklerini gir.
-- [ ] **Kişisel bilgiler**: `candidateName`, `candidateEmail`, `candidatePhone` alanlarını doldur.
-- [ ] **Arama tercihleri**: `targetLocation`, `remotePreference`, `minimumSalaryAnnual`, `maxJobsToProcess` alanlarını gerçek tercihlerinle güncelle.
-
-### Karar bekleyen noktalar
-- [ ] CV'yi URL olarak mı sunacaksın, yoksa dosya yükleme + link üretme adımını workflow'a ekleyelim mi?
-- [ ] Kendi cover letter metnini AI'a şablon olarak mı vereceksin, yoksa tamamen AI üretimine mi bırakacaksın?
+## Kullanıcı Tercihleri (nasıl çalışmak istiyor)
+- Değişiklik yapmadan önce plan sunulmasını, mantıklı bir yol çizilmesini istiyor ("bu maddeleri iyice düşün ve mantıklı bir yol çiz").
+- Bazen "şu an çözüm istemiyorum, sadece konuşalım" diyor — bu durumda sadece analiz/teşhis sunulmalı, kod değişikliği yapılmamalı, o onay verene kadar beklenmeli.
+- git commit/push gibi görünür aksiyonlardan önce onay istiyor (proje hook'u da bunu zorunlu kılıyor: commit için önce göster, onay al).
+- İlk aşamada gerçek başvuru göndermek yerine ilanları görüntülemek/gözden geçirmek istiyor (dry-run zihniyeti).
