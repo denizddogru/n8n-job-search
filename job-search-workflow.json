@@ -1,0 +1,1101 @@
+{
+  "name": "Job Application Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "5580f339-470c-4eb3-b900-ad0c8bbc77ef",
+      "name": "🕘 Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1072,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=indeed_search_{{ $execution.id }}",
+        "contextWindowLength": 8
+      },
+      "id": "19ab2381-a92b-4f06-a0fc-882f798e1da6",
+      "name": "💾 Memory: Search Indeed",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1952,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"title\": \"JobOffersList\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"jobs\": {\n      \"type\": \"array\",\n      \"description\": \"Liste des offres d'emploi trouvées.\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"jobId\",\n          \"title\",\n          \"company\",\n          \"url\",\n          \"location\",\n          \"whyMatch\"\n        ],\n        \"properties\": {\n          \"jobId\": {\n            \"type\": \"string\",\n            \"description\": \"Identifiant unique trouvé sur la plateforme (ex: 'job_12345').\"\n          },\n          \"title\": {\n            \"type\": \"string\",\n            \"description\": \"Intitulé exact du poste.\"\n          },\n          \"description\": {\n            \"type\": \"string\",\n            \"description\": \"the job full description\"\n          },\n          \"company\": {\n            \"type\": \"string\",\n            \"description\": \"Nom de l'entreprise recruteuse.\"\n          },\n          \"url\": {\n            \"type\": \"string\",\n            \"description\": \"URL absolue vers l'offre.\"\n          },\n          \"location\": {\n            \"type\": \"string\",\n            \"description\": \"Localisation telle que retournée par la source (ville, pays, remote, etc.).\"\n          },\n          \"salary\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"min\": { \"type\": \"number\", \"description\": \"Salaire minimum (nombre uniquement). Omettre si inconnu.\" },\n              \"max\": { \"type\": \"number\", \"description\": \"Salaire maximum (nombre uniquement). Omettre si inconnu.\" },\n              \"currency\": { \"type\": \"string\", \"description\": \"Devise (EUR, USD, etc.)\", \"default\": \"EUR\" },\n              \"text\": { \"type\": \"string\", \"description\": \"Mention brute du salaire si format complexe.\" }\n            }\n          },\n          \"jobType\": {\n            \"type\": \"string\",\n            \"description\": \"Type de contrat : CDI, CDD, Freelance, Alternance, Stage.\"\n          },\n          \"whyMatch\": {\n            \"type\": \"string\",\n            \"description\": \"Analyse concise expliquant la pertinence du poste.\"\n          },\n          \"relevanceScore\": {\n            \"type\": \"integer\",\n            \"description\": \"Score de pertinence de 0 à 100.\"\n          }\n        }\n      }\n    }\n  }\n}",
+        "autoFix": true
+      },
+      "id": "67eb1a8b-e9d1-4e94-9c77-6f8199724983",
+      "name": "📋 Parse: Search Results",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2080,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=application_pack_{{ $execution.id }}",
+        "contextWindowLength": 6
+      },
+      "id": "13ff260c-fb7e-45bb-90db-921463f94f2b",
+      "name": "💾 Memory: Application Pack",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2896,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"email_subject\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"A professional and catchy subject line for the application email (e.g., 'Application for [Role] - [Name]')\"\n\t\t},\n\t\t\"salutation\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"The greeting line (e.g., 'Dear Hiring Manager,' or the specific name if found in the job description)\"\n\t\t},\n\t\t\"letter_body\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"The core content of the cover letter in Markdown. Exclude the subject line and the greeting.\"\n\t\t},\n\t\t\"key_selling_points\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"A list of the top 3 skills or achievements extracted from the profile that best match this specific job.\"\n\t\t},\n        \"job_url\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"The url of the job offer\"\n\t\t},\n        \"job_title\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"The title of the job offer\"\n\t\t}\n\t},\n\t\"required\": [\n\t\t\"email_subject\",\n\t\t\"salutation\",\n\t\t\"letter_body\",\n        \"job_url\",\n        \"job_title\"\n\t]\n}",
+        "autoFix": true
+      },
+      "id": "ef9f17a7-92ba-4ff1-8606-ee4a776151bf",
+      "name": "📋 Parse: Application Pack",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3024,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3-flash-preview",
+        "options": {}
+      },
+      "id": "7d2d646a-8d17-418c-8a9d-c9663a38574b",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2016,
+        736
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DunK9FvUJHIlLybd",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "14a5da16-a979-4ef0-9cd3-2b6a299cac53",
+      "name": "📦 Aggregate: Profile Sources",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=profile_intel_{{ $execution.id }}",
+        "contextWindowLength": 8
+      },
+      "id": "8e6d8704-8659-43f5-ba17-6d119e2d09b6",
+      "name": "💾 Memory: Profile Intelligence1",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        64,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"Profil de Recherche d'Emploi\",\n  \"type\": \"object\",\n  \"required\": [\n    \"primaryRoles\",\n    \"secondaryRoles\",\n    \"coreSkills\",\n    \"seniority\",\n    \"expected_salary\",\n    \"searchQueries\",\n    \"exclusions\",\n    \"locationQuery\",\n    \"rationale\"\n  ],\n  \"properties\": {\n    \"primaryRoles\": {\n      \"type\": \"array\",\n      \"description\": \"Liste des rôles principaux ciblés.\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"secondaryRoles\": {\n      \"type\": \"array\",\n      \"description\": \"Liste des rôles secondaires ou connexes.\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"coreSkills\": {\n      \"type\": \"array\",\n      \"description\": \"Compétences clés requises pour le poste.\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"seniority\": {\n      \"type\": \"string\",\n      \"description\": \"Niveau d'expérience (ex: Junior, Senior, Lead).\"\n    },\n    \"expected_salary\": {\n      \"type\": \"string\",\n      \"description\": \"Salaire minimum\"\n    },\n    \"searchQueries\": {\n      \"type\": \"array\",\n      \"description\": \"Requêtes optimisées pour la recherche d'emploi, en local et en anglais.\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"exclusions\": {\n      \"type\": \"array\",\n      \"description\": \"Mots-clés à exclure de la recherche.\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"locationQuery\": {\n      \"type\": \"object\",\n      \"description\": \"Détails géographiques de la recherche.\",\n      \"properties\": {\n        \"state\": {\n          \"type\": \"string\",\n          \"description\": \"Région, province ou État.\"\n        },\n        \"cities\": {\n          \"type\": \"array\",\n          \"description\": \"Liste des villes ciblées.\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        }\n      },\n      \"required\": [\"state\", \"cities\"]\n    },\n    \"rationale\": {\n      \"type\": \"string\",\n      \"description\": \"Justification ou logique derrière cette stratégie de recherche.\"\n    }\n  }\n}"
+      },
+      "id": "a7343f9b-7da0-4898-b3fe-b47c6356f524",
+      "name": "📋 Parse: Profile Intelligence1",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "770e00d8-02de-465d-a28b-387dc07bad22",
+              "name": "candidateName",
+              "value": "John Doe",
+              "type": "string"
+            },
+            {
+              "id": "23e0d14f-c236-42e6-a559-9bcb2fb41ef4",
+              "name": "candidateEmail",
+              "value": "john@yopmail.com",
+              "type": "string"
+            },
+            {
+              "id": "1a173df7-672c-4db9-8569-a9d2e5a3d98e",
+              "name": "candidatePhone",
+              "value": "+33 6 00 00 00 00",
+              "type": "string"
+            },
+            {
+              "id": "75935f15-263f-4d1a-bb2a-4f0495a5977d",
+              "name": "targetLocation",
+              "value": "Istanbul",
+              "type": "string"
+            },
+            {
+              "id": "b66717e5-9008-49b7-a70f-5a46d4a9fd16",
+              "name": "targetLanguage",
+              "value": "tr",
+              "type": "string"
+            },
+            {
+              "id": "8dec8eeb-6612-4f0c-b4d7-d802a43d0bc0",
+              "name": "remotePreference",
+              "value": "hybrid",
+              "type": "string"
+            },
+            {
+              "id": "a6ff7374-6e40-498c-8cda-03cb6814c5e8",
+              "name": "minimumSalaryAnnual",
+              "value": "60 000",
+              "type": "string"
+            },
+            {
+              "id": "1186e511-98f8-42f7-a1c7-c775d1ba7cc6",
+              "name": "maxJobsToProcess",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "ef1dba6b-c697-46cd-9873-9f109af8c894",
+              "name": "cvUrlPdf",
+              "value": "https://cv-fr-light.pdf",
+              "type": "string"
+            },
+            {
+              "id": "cb6b6fc1-cac9-4bde-bdac-b5fb65f2fed3",
+              "name": "cvUrlWeb",
+              "value": "https://cv/",
+              "type": "string"
+            },
+            {
+              "id": "f30e006c-63b8-42ee-9197-83d709822a81",
+              "name": "linkedinUrl",
+              "value": "https://xxx",
+              "type": "string"
+            },
+            {
+              "id": "ac7fbc69-d7af-493c-9665-7cfe86973b9d",
+              "name": "githubUrl",
+              "value": "https://github.com",
+              "type": "string"
+            },
+            {
+              "id": "f9eaf5ee-0c36-46ec-8514-40341c44ef84",
+              "name": "githubOwner",
+              "value": "John Doe",
+              "type": "string"
+            },
+            {
+              "id": "88fdb269-e3f6-4d17-ac3a-a16260060543",
+              "name": "githubRepo",
+              "value": "cv",
+              "type": "string"
+            },
+            {
+              "id": "bdca111c-c24d-4f95-ae40-e646f1539921",
+              "name": "githubBaseBranch",
+              "value": "main",
+              "type": "string"
+            },
+            {
+              "id": "683ec5bf-a45e-40cb-888d-5d0f8c758f90",
+              "name": "githubLocaleFilePath",
+              "value": "locales/fr.yml",
+              "type": "string"
+            },
+            {
+              "id": "b9d8c2ab-59c3-4f53-84b7-75f1a6b6be7b",
+              "name": "githubPdfPath",
+              "value": "pdf/cv-fr-light.pdf",
+              "type": "string"
+            },
+            {
+              "id": "29d03144-ec2e-4980-9387-ad6ec6d826a1",
+              "name": "githubActionPollSeconds",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "f2f45f77-cb4f-4a90-a633-8767ec06bf0c",
+              "name": "githubActionMaxPollAttempts",
+              "value": 20,
+              "type": "number"
+            },
+            {
+              "id": "89eb427b-a6f4-47ec-bf53-2f687c8abf5b",
+              "name": "githubActionWorkflowName",
+              "value": "Build and Commit PDFs",
+              "type": "string"
+            },
+            {
+              "id": "f8eb7364-935b-4669-8bd4-d41922adfcbe",
+              "name": "githubToken",
+              "value": "xxx",
+              "type": "string"
+            },
+            {
+              "id": "8a6a9362-2068-4fa0-b13c-8b3e6df74e4a",
+              "name": "githubPrDraft",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "c1a1b7f1-1a11-4a11-9a11-a1a1a1a1a1a1",
+              "name": "targetCountryCode",
+              "value": "tr",
+              "type": "string"
+            },
+            {
+              "id": "c1a1b7f1-1a11-4a11-9a11-a1a1a1a1a1a2",
+              "name": "targetLanguageCode",
+              "value": "tr",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bdd9decd-9de7-4604-9aaa-34261567b8c8",
+      "name": "⚙️ Configuration1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -848,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"queries\": {\n      \"type\": \"array\",\n      \"minItems\": 6,\n      \"maxItems\": 10,\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\"q\"],\n        \"properties\": {\n          \"q\": { \"type\": \"string\", \"description\": \"Search text for Google Jobs (job title + keyword variant, max 4-5 words)\" },\n          \"location\": { \"type\": \"string\", \"description\": \"City/region string, e.g. 'Istanbul, Turkey'. Omit for remote-only queries.\" }\n        }\n      }\n    }\n  },\n  \"required\": [\"queries\"]\n}"
+      },
+      "id": "f825bc75-20d1-45a2-8a11-5e80bffb5e93",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        544,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=url_{{ $execution.id }}",
+        "contextWindowLength": 8
+      },
+      "id": "90c4f615-73a3-4395-a817-fadb0b5d4f13",
+      "name": "💾 Memory: Profile Intelligence",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "0fb1983b-3f24-4d95-b1ec-cb93a3b41a82",
+      "name": "📦 Aggregate: Job Applications",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        3024,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.first().json.output.jobs.map((job)=>{return {job}})"
+      },
+      "id": "51b38592-1bb6-49c9-94eb-df55cce54539",
+      "name": "🧾 Build Selected Jobs Source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.first().json.output.queries.map((item) => ({\n  q: item.q,\n  location: item.location || ''\n}));"
+      },
+      "id": "62afa358-27ac-428b-8023-24b56bfc8a13",
+      "name": "🧾 Build Search Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Search Strategy:\nPrimary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.primaryRoles }}\nSecondary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.secondaryRoles }}\ncoreSkills:\n{{ $('🎯 Agent: Profile Generation').item.json.output.coreSkills }}\nSeniority:\n{{ $('🎯 Agent: Profile Generation').item.json.output.seniority }}\n\nSearch Queries:\n{{ $('🎯 Agent: Profile Generation').item.json.output.searchQueries }}\n\nExclusions:\n{{ $('🎯 Agent: Profile Generation').item.json.output.exclusions }}\n\nLocation Query:\n{{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.cities }}, {{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.state }}\n\nRationale:\n{{ $('🎯 Agent: Profile Generation').item.json.output.rationale }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a search-query generation agent for Google Jobs via SerpAPI.\nEndpoint: https://serpapi.com/search?engine=google_jobs\n\nObjective\nGenerate complementary queries to maximize result coverage. Each query should explore a different angle (varied keywords, seniority, or location).\n\nAvailable Parameters (per query)\n- q (required): search text, max 4-5 words, combine job title + one keyword variant. Write it like a natural Google search, not a boolean query.\n- location (optional): city/region string, e.g. \"Istanbul, Turkey\". Omit only for remote-focused queries.\n\nSplitting Strategies\nBy keywords: job title variants\n\"backend developer\" -> \".NET developer\", \"C# developer\", \"backend engineer\"\nBy seniority: add/omit \"senior\", \"lead\"\nBy location: if {{ $('⚙️ Configuration1').item.json.remotePreference }} is \"hybrid\", \"fullremote\" or \"remote\", also generate queries with no location and \"remote\" added to q.\n\nRules\n- 6-10 queries, no duplicates\n- Never invent locations not implied by the configuration\n- Keep q concise and natural\n\nResponse Format\nReturn a JSON object with key 'queries': an array of { q, location } objects.\n\nExample\nRequest: .NET backend developer, hybrid, based in Istanbul\nquery 1: { \"q\": \".NET backend developer\", \"location\": \"Istanbul, Turkey\" }\nquery 2: { \"q\": \"C# developer\", \"location\": \"Istanbul, Turkey\" }\nquery 3: { \"q\": \"backend developer remote\" }",
+          "maxIterations": 10
+        }
+      },
+      "id": "7ccde75f-8333-469e-a875-b59f51fd8b5d",
+      "name": "🔎 Agent: Search Queries generation",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        400,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Build a precise job search strategy from these profile sources.\n\nCandidate:\n- Name: {{ $('⚙️ Configuration1').item.json.candidateName }}\n- Target location: {{ $('⚙️ Configuration1').item.json.targetLocation }}\n- Remote preference: {{ $('⚙️ Configuration1').item.json.remotePreference }}\n- Minimum annual salary: {{ $('⚙️ Configuration1').item.json.minimumSalaryAnnual }}\n\nProfile Source Content:\n{{ JSON.stringify($json) }}\n\nReturn a JSON object with:\n- primaryRoles (array of strings)\n- secondaryRoles (array of strings)\n- coreSkills (array of strings)\n- seniority (string)\n- expected salary (string)\n- searchQueries (array of optimized search queries, local language and English)\n- exclusions (array of terms to avoid)\n- locationQuery (string)\n- rationale (short string)",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a profile intelligence agent for job search automation. Infer realistic target roles and search queries from resume/profile content. Keep outputs concrete, concise, and useful for a Google Jobs search.",
+          "maxIterations": 4
+        }
+      },
+      "id": "1182efb6-5271-4c91-a51e-3ba0bd8a8f1a",
+      "name": "🎯 Agent: Profile Generation",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        48,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $input.first().json;\n\nconst pickedArray = [original.cvUrlWeb, original.linkedinUrl, original.githubUrl]\n  .filter((url) => typeof url === 'string' && url.trim().length > 0);\n\nreturn pickedArray.map((url) => ({\n  json: {\n    url: url.trim()\n  }\n}));\n"
+      },
+      "id": "535b047e-aae7-466b-a2e4-604214996e5d",
+      "name": "🧾 Build Profile Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "outputFormat": "markdown"
+        },
+        "requestOptions": {}
+      },
+      "id": "92cd5025-6b82-466e-9f15-1665f74f1969",
+      "name": "📖 Jina: Read Profile Source",
+      "type": "n8n-nodes-base.jinaAi",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        640
+      ],
+      "credentials": {
+        "jinaAiApi": {
+          "id": "YmIMq9jd5lNUfwOe",
+          "name": "Jina AI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1d7abcfa-fdf5-4e0c-bf2e-15bfd00c3b6a",
+      "name": "Loop Over profile sources",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -400,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=JOB OFFERS :\n{{ JSON.stringify($json.results) }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an autonomous job hunter agent. Prioritize relevance over quantity, and produce clean structured output.\n\nUse the generated strategy to find relevant jobs and return structured jobs.\n\nSearch Strategy:\nPrimary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.primaryRoles }}\nSecondary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.secondaryRoles }}\ncoreSkills:\n{{ $('🎯 Agent: Profile Generation').item.json.output.coreSkills }}\nSeniority:\n{{ $('🎯 Agent: Profile Generation').item.json.output.seniority }}\nExpected salary:\n{{ $('🎯 Agent: Profile Generation').item.json.output.expected_salary }}\n\nSearch Queries:\n{{ $('🎯 Agent: Profile Generation').item.json.output.searchQueries }}\n\nExclusions:\n{{ $('🎯 Agent: Profile Generation').item.json.output.exclusions }}\n\nLocation Query:\n{{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.cities }}, {{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.state }}\n\nRationale:\n{{ $('🎯 Agent: Profile Generation').item.json.output.rationale }}\n\nContext note: JOB OFFERS above come from SerpAPI's Google Jobs engine. Each response item has a 'jobs_results' array where objects contain: job_id, title, company_name, location (plain string), description, via, detected_extensions (may contain schedule_type, salary), related_links (array with 'link' = apply URL).\n\nRules:\n1) FIND MATCHING OFFERS\n2) Never invent or hallucinate offers. Always rely on JOB OFFERS in your context.\n3) Return max {{ $('⚙️ Configuration1').item.json.maxJobsToProcess }} jobs.\n4) If no match simply return \"Aucune offre correspondante\"\n\nReturn JSON object with key 'jobs' as array of objects:\n- jobId (from job_id)\n- title (from title)\n- company (from company_name)\n- url (from related_links[0].link, fallback to via if absent)\n- location (from location, plain string)\n- snippet\n- fullDescription (from description)\n- salary (from detected_extensions.salary if present, else omit)\n- jobType (from detected_extensions.schedule_type if present, else omit)\n- whyMatch\nAll those properties must be found in context below. Do not invent properties that aren't derivable from the source data.",
+          "maxIterations": 10
+        }
+      },
+      "id": "9509bd0e-9c9a-4667-8ee9-4a89e273eb11",
+      "name": "🔎 Agent: Jobs selection",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1872,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "651263fb-bf3a-4e94-809d-2f10c5d89617",
+      "name": "📦 Aggregate: Jobs",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "queryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_jobs"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.q }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "gl",
+              "value": "={{ $('⚙️ Configuration1').item.json.targetCountryCode }}"
+            },
+            {
+              "name": "hl",
+              "value": "={{ $('⚙️ Configuration1').item.json.targetLanguageCode }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a9ae48f4-b4df-4e71-a1eb-a5da173b665d",
+      "name": "Get job results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        496
+      ],
+      "credentials": {
+        "queryAuth": {
+          "id": "REPLACE_WITH_SERPAPI_CREDENTIAL_ID",
+          "name": "SerpAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "24f00a37-dcee-4819-814e-7d982a740af5",
+      "name": "Loop Over Job results responses",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        976,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "752baaac-264f-4026-b72f-f1a66a2171e4",
+      "name": "Loop Over Application",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2672,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "=Create a tailored application package for this job.\n\n\n**CANDIDATE_PROFILE:**\nPrimary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.primaryRoles }}\nSecondary roles:\n{{ $('🎯 Agent: Profile Generation').item.json.output.secondaryRoles }}\ncoreSkills:\n{{ $('🎯 Agent: Profile Generation').item.json.output.coreSkills }}\nSeniority:\n{{ $('🎯 Agent: Profile Generation').item.json.output.seniority }}\nExpected salary:\n{{ $('🎯 Agent: Profile Generation').item.json.output.seniority }}\n\nSearch Queries:\n{{ $('🎯 Agent: Profile Generation').item.json.output.searchQueries }}\n\nExclusions:\n{{ $('🎯 Agent: Profile Generation').item.json.output.exclusions }}\n\nLocation Query:\n{{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.cities }}, {{ $('🎯 Agent: Profile Generation').item.json.output.locationQuery.state }}\n\nRationale:\n{{ $('🎯 Agent: Profile Generation').item.json.output.rationale }}\n\n**CANDIDATE_FULL_DATA:**\n{{ JSON.stringify($('📦 Aggregate: Profile Sources').item.json.results) }}\n\n**JOB_DATA:**\nJob url: {{ $json.job.url }}\nJob title: {{ $json.job.title }}\nJob description: {{ $json.job.description }}\nJob location: {{ JSON.stringify($json.job.location) }}\nJob type: {{ $json.job.jobType }}\nWhy match: {{ $json.job.whyMatch }}\nRelevance Score: {{ $json.job.relevanceScore }}\n\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=### ROLE\nYou are an expert Career Strategist and Professional Copywriter with 15 years of experience in recruitment. Your goal is to write a highly persuasive, personalized, and professional cover letter.\n\n### INPUT DATA\nYou will receive three distinct blocks of information:\n1. **CANDIDATE_PROFILE:** Information about the user (Resume, bio, skills, experience).\n2. **CANDIDATE_FULL_DATA:** Full data about the candidate that you can use if you find specific matches that were not highlighted in **CANDIDATE_PROFILE:**\n3. **JOB_DESCRIPTION:** Details about the target role (Responsibilities, requirements, company culture).\n\n### OBJECTIVE\nAnalyze the `CANDIDATE_PROFILE` to find specific evidence that matches the requirements in the `JOB_DESCRIPTION`. Write a cover letter that proves the candidate is the perfect fit for this specific role.\n\n### WRITING GUIDELINES\n1.  **Tone:** Professional, confident, enthusiastic, and authentic. Match the tone of the job description (e.g., if the JD is formal, be formal; if it's a startup, be dynamic).\n2.  **Structure:**\n    * **Header:** Standard formal letter format (placeholders for contact info if not provided).\n    * **Hook:** Don't start with \"I am writing to apply...\" Start with a strong opening sentence about the value the candidate brings or their passion for the company's mission.\n    * **The \"Bridge\":** Connect the candidate's past achievements directly to the company's future goals. Use metrics and specific examples from the `CANDIDATE_PROFILE`.\n    * **Company Fit:** Briefly mention why this specific company appeals to the candidate (based on the `JOB_DESCRIPTION`).\n    * **Call to Action:** A confident closing inviting an interview.\n3.  **Constraints:**\n    * Do NOT invent experiences not present in the `CANDIDATE_PROFILE`.\n    * Do NOT simply summarize the resume. Interpret the experience.\n    * Keep the length between 250-400 words.\n    * Output letter_body and key_selling_points properties strings in HTML.\n\n### CRITICAL INSTRUCTION\nIf the `CANDIDATE_PROFILE` is missing a specific skill required in the `JOB_DESCRIPTION`, focus on transferable skills and the ability to learn quickly. Do not lie.\nYou have to answer in a structured outpy json.\nyou also have to remind the job url and the job title in the structured json output.\n\nNow, wait for the user to provide the data contexts."
+        }
+      },
+      "id": "36a201c2-6ed0-4138-8de9-a61dfa6e0fa3",
+      "name": "✍️ Agent: Generate Application",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2928,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "john@yopmail.com",
+        "subject": "={{ $('✍️ Agent: Generate Application').item.json.output.email_subject }}",
+        "message": "={{ $('✍️ Agent: Generate Application').item.json.output.salutation }}<br><br>\n\n{{ $('✍️ Agent: Generate Application').item.json.output.letter_body }}<br><br>\n\n{{ $('✍️ Agent: Generate Application').item.json.output.key_selling_points }}\n\n<hr>\n\n<strong>{{ $('✍️ Agent: Generate Application').item.json.output.job_title }}</strong>\n<br>\n{{ $('✍️ Agent: Generate Application').item.json.output.job_url }}",
+        "options": {}
+      },
+      "id": "14c03b9b-0fe5-4b40-81b0-d8ac52594f1a",
+      "name": "📧 Send: Application Output",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3616,
+        352
+      ],
+      "webhookId": "81a80254-cea3-4fde-b02a-11a7e10c8c35",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6z4EpEOJZDp56mUm",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "xxxx",
+          "mode": "list",
+          "cachedResultName": "job offers processed",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/xxxx/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "job urls",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/xxxx/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "URLS": "={{ $('✍️ Agent: Generate Application').item.json.output.job_url }}"
+          },
+          "matchingColumns": [
+            "URLS"
+          ],
+          "schema": [
+            {
+              "id": "URLS",
+              "displayName": "URLS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c4c7fee1-f3b8-417b-87f0-65744e8f468e",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3840,
+        352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Fz0wVJr8gulKyizm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "xxxx",
+          "mode": "list",
+          "cachedResultName": "job offers processed",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/xxxx/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "job urls",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/xxxx/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "1443c96a-cf31-4f6a-87d7-facac5a5eb7a",
+      "name": "Get already processed jobs urls",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1424,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Fz0wVJr8gulKyizm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalizeUrl = (value) => {\n  if (typeof value !== 'string') return '';\n\n  const raw = value.trim();\n  if (!raw) return '';\n\n  try {\n    const parsed = new URL(raw);\n    const normalizedPath = parsed.pathname.replace(/\\/+$|^$/, '/');\n    return `${parsed.protocol.toLowerCase()}//${parsed.hostname.toLowerCase()}${normalizedPath}${parsed.search}`;\n  } catch {\n    return raw.replace(/\\/+$|^$/, '/');\n  }\n};\n\nconst addProcessedOffer = (offer, processedUrls, processedIds) => {\n  const offerUrl = normalizeUrl(\n    offer?.related_links?.[0]?.link ??\n    offer?.apply_link ??\n    offer?.share_link\n  );\n\n  if (offerUrl) {\n    processedUrls.add(offerUrl);\n  }\n\n  const offerId = offer?.job_id != null ? String(offer.job_id).trim() : '';\n  if (offerId) {\n    processedIds.add(offerId);\n  }\n};\n\nconst processedUrls = new Set();\nconst processedIds = new Set();\n\nfor (const item of $input.all()) {\n  const json = item?.json ?? {};\n\n  const directUrl = json.URLS ?? json.url ?? json.Url ?? json.urls;\n  const normalizedDirectUrl = normalizeUrl(directUrl);\n  if (normalizedDirectUrl) {\n    processedUrls.add(normalizedDirectUrl);\n  }\n\n  const directId = json.id != null ? String(json.id).trim() : '';\n  if (directId) {\n    processedIds.add(directId);\n  }\n\n  if (Array.isArray(json.jobs_results)) {\n    for (const offer of json.jobs_results) {\n      addProcessedOffer(offer, processedUrls, processedIds);\n    }\n  }\n\n  if (Array.isArray(json.results)) {\n    for (const resultBlock of json.results) {\n      if (Array.isArray(resultBlock?.jobs_results)) {\n        for (const offer of resultBlock.jobs_results) {\n          addProcessedOffer(offer, processedUrls, processedIds);\n        }\n      } else if (resultBlock && typeof resultBlock === 'object') {\n        addProcessedOffer(resultBlock, processedUrls, processedIds);\n      }\n    }\n  }\n}\n\nconst aggregated = $('📦 Aggregate: Jobs').first()?.json?.results;\nconst results = Array.isArray(aggregated) ? aggregated : [];\n\nconst filteredResults = results\n  .map((responseItem) => {\n    if (!Array.isArray(responseItem?.jobs_results)) {\n      return responseItem;\n    }\n\n    const filteredOffers = responseItem.jobs_results.filter((offer) => {\n      const offerUrl = normalizeUrl(\n        offer?.related_links?.[0]?.link ??\n        offer?.apply_link ??\n        offer?.share_link\n      );\n      const offerId = offer?.job_id != null ? String(offer.job_id).trim() : '';\n\n      const isProcessedByUrl = offerUrl && processedUrls.has(offerUrl);\n      const isProcessedById = offerId && processedIds.has(offerId);\n\n      return !(isProcessedByUrl || isProcessedById);\n    });\n\n    return {\n      ...responseItem,\n      jobs_results: filteredOffers\n    };\n  })\n  .filter((responseItem) => !Array.isArray(responseItem?.jobs_results) || responseItem.jobs_results.length > 0);\n\nreturn [\n  {\n    json: {\n      results: filteredResults\n    },\n    pairedItem: {\n      item: 0\n    }\n  }\n];"
+      },
+      "id": "b2ef2972-fc15-4401-b7da-4a4140bcc882",
+      "name": "Remove already processed jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        304
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "🕘 Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Configuration1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Aggregate: Profile Sources": {
+      "main": [
+        [
+          {
+            "node": "🎯 Agent: Profile Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Configuration1": {
+      "main": [
+        [
+          {
+            "node": "🧾 Build Profile Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧾 Build Selected Jobs Source": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧾 Build Search Queries": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Job results responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔎 Agent: Search Queries generation": {
+      "main": [
+        [
+          {
+            "node": "🧾 Build Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Agent: Profile Generation": {
+      "main": [
+        [
+          {
+            "node": "🔎 Agent: Search Queries generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧾 Build Profile Sources": {
+      "main": [
+        [
+          {
+            "node": "Loop Over profile sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📖 Jina: Read Profile Source": {
+      "main": [
+        [
+          {
+            "node": "Loop Over profile sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over profile sources": {
+      "main": [
+        [
+          {
+            "node": "📦 Aggregate: Profile Sources",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📖 Jina: Read Profile Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔎 Agent: Jobs selection": {
+      "main": [
+        [
+          {
+            "node": "🧾 Build Selected Jobs Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Aggregate: Jobs": {
+      "main": [
+        [
+          {
+            "node": "Get already processed jobs urls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get job results": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Job results responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Job results responses": {
+      "main": [
+        [
+          {
+            "node": "📦 Aggregate: Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get job results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Application": {
+      "main": [
+        [
+          {
+            "node": "📦 Aggregate: Job Applications",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✍️ Agent: Generate Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✍️ Agent: Generate Application": {
+      "main": [
+        [
+          {
+            "node": "📧 Send: Application Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Send: Application Output": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get already processed jobs urls": {
+      "main": [
+        [
+          {
+            "node": "Remove already processed jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove already processed jobs": {
+      "main": [
+        [
+          {
+            "node": "🔎 Agent: Jobs selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Memory: Profile Intelligence1": {
+      "ai_memory": [
+        [
+          {
+            "node": "🎯 Agent: Profile Generation",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Parse: Profile Intelligence1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🎯 Agent: Profile Generation",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Memory: Profile Intelligence": {
+      "ai_memory": [
+        [
+          {
+            "node": "🔎 Agent: Search Queries generation",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🔎 Agent: Search Queries generation",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Memory: Search Indeed": {
+      "ai_memory": [
+        [
+          {
+            "node": "🔎 Agent: Jobs selection",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Parse: Search Results": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🔎 Agent: Jobs selection",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "📋 Parse: Application Pack",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "✍️ Agent: Generate Application",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "📋 Parse: Search Results",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🔎 Agent: Jobs selection",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🔎 Agent: Search Queries generation",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🎯 Agent: Profile Generation",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Parse: Application Pack": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "✍️ Agent: Generate Application",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Memory: Application Pack": {
+      "ai_memory": [
+        [
+          {
+            "node": "✍️ Agent: Generate Application",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed"
+  },
+  "versionId": "9782da5d-31aa-4f50-bb87-ca90241a7267",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "edd25271aa625c76cdf6d84b2348166a32e5f283c2b13fa889b33e5c5a59d611"
+  },
+  "id": "G9GXzwX97XBKAwcj",
+  "tags": []
+}
