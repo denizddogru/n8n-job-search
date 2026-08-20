@@ -12,28 +12,28 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // ParseSearchResults                 outputParserStructured     [AI] [ai_outputParser]
 // MemoryApplicationPack              memoryBufferWindow         [ai_memory]
 // ParseApplicationPack               outputParserStructured     [AI] [ai_outputParser]
-// OpenaiChatModel                    lmChatOpenAi               [creds] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel]
+// OpenaiChatModel                    lmChatOpenAi               [creds] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel] [ai_languageModel]
 // AggregateProfileSources            aggregate
 // MemoryProfileIntelligence1         memoryBufferWindow         [ai_memory]
-// ParseProfileIntelligence1          outputParserStructured     [ai_outputParser]
+// ParseProfileIntelligence1          outputParserStructured     [AI] [ai_outputParser]
 // Configuration1                     set
-// StructuredOutputParser             outputParserStructured     [ai_outputParser]
+// StructuredOutputParser             outputParserStructured     [AI] [ai_outputParser]
 // MemoryProfileIntelligence          memoryBufferWindow         [ai_memory]
 // AggregateJobApplications           aggregate
 // BuildDigestEmail                   code
 // BuildSelectedJobsSource            code
 // BuildSearchQueries                 code
-// AgentSearchQueriesGeneration       agent                      [AI]
-// AgentProfileGeneration             agent                      [AI]
+// AgentSearchQueriesGeneration       agent                      [AI] [retry]
+// AgentProfileGeneration             agent                      [AI] [retry]
 // BuildProfileSources                code
 // JinaReadProfileSource              jinaAi                     [creds]
 // LoopOverProfileSources             splitInBatches
-// AgentJobsSelection                 agent                      [AI]
+// AgentJobsSelection                 agent                      [AI] [retry]
 // AggregateJobs                      aggregate
 // GetJobResults                      httpRequest                [creds]
 // LoopOverJobResultsResponses        splitInBatches
 // LoopOverApplication                splitInBatches
-// AgentGenerateApplication           agent                      [AI]
+// AgentGenerateApplication           agent                      [AI] [retry]
 // SendApplicationOutput              gmail                      [creds]
 // AppendRowInSheet                   googleSheets               [creds]
 // GetAlreadyProcessedJobsUrls        googleSheets               [creds] [alwaysOutput]
@@ -70,6 +70,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // AI CONNECTIONS
 // ParseSearchResults.uses({ ai_languageModel: OpenaiChatModel })
 // ParseApplicationPack.uses({ ai_languageModel: OpenaiChatModel })
+// ParseProfileIntelligence1.uses({ ai_languageModel: OpenaiChatModel })
+// StructuredOutputParser.uses({ ai_languageModel: OpenaiChatModel })
 // AgentSearchQueriesGeneration.uses({ ai_languageModel: OpenaiChatModel, ai_memory: MemoryProfileIntelligence, ai_outputParser: StructuredOutputParser })
 // AgentProfileGeneration.uses({ ai_languageModel: OpenaiChatModel, ai_memory: MemoryProfileIntelligence1, ai_outputParser: ParseProfileIntelligence1 })
 // AgentJobsSelection.uses({ ai_languageModel: OpenaiChatModel, ai_memory: MemorySearchIndeed, ai_outputParser: ParseSearchResults })
@@ -429,6 +431,7 @@ export class JobApplicationAssistantWorkflow {
     }
   }
 }`,
+        autoFix: true,
     };
 
     @node({
@@ -604,20 +607,20 @@ export class JobApplicationAssistantWorkflow {
   "properties": {
     "queries": {
       "type": "array",
-      "minItems": 6,
-      "maxItems": 10,
+      "minItems": 4,
+      "maxItems": 6,
       "items": {
         "type": "object",
         "required": ["q"],
         "properties": {
-          "q": { "type": "string", "description": "Search text for Google Jobs (job title + keyword variant, max 4-5 words)" },
-          "location": { "type": "string", "description": "City/region string, e.g. 'Istanbul, Turkey'. Omit for remote-only queries." }
+          "q": { "type": "string", "description": "Search text for Google Jobs (job title + keyword variant, max 4-5 words)" }
         }
       }
     }
   },
   "required": ["queries"]
 }`,
+        autoFix: true,
     };
 
     @node({
@@ -689,7 +692,13 @@ return [
         position: [2448, 304],
     })
     BuildSelectedJobsSource = {
-        jsCode: 'return $input.first().json.output.jobs.map((job)=>{return {job}})',
+        jsCode: `const jobs = $input.first().json.output.jobs;
+const sorted = [...jobs].sort((a, b) => {
+  const aIndeed = a.applySite === 'Indeed' ? 0 : 1;
+  const bIndeed = b.applySite === 'Indeed' ? 0 : 1;
+  return aIndeed - bIndeed;
+});
+return sorted.map((job) => ({ job }));`,
     };
 
     @node({
@@ -711,6 +720,9 @@ return [
         type: '@n8n/n8n-nodes-langchain.agent',
         version: 1.7,
         position: [400, 448],
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 2000,
     })
     AgentSearchQueriesGeneration = {
         promptType: 'define',
@@ -754,19 +766,24 @@ Splitting Strategies
 By keywords: job title variants
 "remote backend developer" -> "remote .NET developer", "remote C# developer", "remote backend engineer"
 By seniority: add/omit "senior", "lead"
+By AI focus: also include variants with "AI Native" / "AI Driven" (e.g. "remote AI native .NET developer", "remote AI driven backend developer")
 
 Rules
 - 4-6 queries, no duplicates
 - Every query's q must contain "remote"
+- At least one query MUST be exactly (or a close natural variant of) "remote .NET developer" — .NET is the candidate's primary stack, never drop it
+- At least one query must include "AI Native" or "AI Driven"
+- NEVER generate queries for Java or Python (not the candidate's stack — do not include them even as "coverage" or "diversity")
 - Keep q concise and natural
 
 Response Format
 Return a JSON object with key 'queries': an array of { q } objects.
 
 Example
-query 1: { "q": "remote .NET backend developer" }
+query 1: { "q": "remote .NET developer" }
 query 2: { "q": "remote C# developer" }
-query 3: { "q": "remote backend engineer" }`,
+query 3: { "q": "remote AI native backend developer" }
+query 4: { "q": "remote AI driven .NET engineer" }`,
             maxIterations: 10,
         },
     };
@@ -777,6 +794,9 @@ query 3: { "q": "remote backend engineer" }`,
         type: '@n8n/n8n-nodes-langchain.agent',
         version: 1.7,
         position: [48, 448],
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 2000,
     })
     AgentProfileGeneration = {
         promptType: 'define',
@@ -804,7 +824,7 @@ Return a JSON object with:
         hasOutputParser: true,
         options: {
             systemMessage:
-                'You are a profile intelligence agent for job search automation. Infer realistic target roles and search queries from resume/profile content. Keep outputs concrete, concise, and useful for a Google Jobs search.',
+                'You are a profile intelligence agent for job search automation. Infer realistic target roles and search queries from resume/profile content. Keep outputs concrete, concise, and useful for a Google Jobs search. The candidate\'s primary stack is .NET / C# (Microsoft stack) — always include ".NET Developer" as a primaryRole. Never include Java or Python as a primaryRole or secondaryRole unless the profile source explicitly shows real professional experience in it (a passing mention, a course, or a tangential tool reference is not enough) — do not invent adjacent-language roles just because they sound similar to backend/API work.',
             maxIterations: 4,
         },
     };
@@ -863,6 +883,9 @@ return pickedArray.map((url) => ({
         type: '@n8n/n8n-nodes-langchain.agent',
         version: 1.7,
         position: [1872, 304],
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 2000,
     })
     AgentJobsSelection = {
         promptType: 'define',
@@ -907,6 +930,7 @@ Rules:
 3) Return max {{ $('⚙️ Configuration1').item.json.maxJobsToProcess }} jobs.
 4) If no match simply return "Aucune offre correspondante"
 5) TECH STACK FIT IS MANDATORY, NOT JUST TITLE MATCH: a job title containing "Backend Developer" or similar is NOT enough by itself. Read the offer's description and prioritize offers whose primary tech stack matches coreSkills (.NET, C#, ASP.NET, Microsoft stack). Deprioritize or exclude offers that primarily require a fundamentally different stack (e.g. Ruby on Rails, Python-only, PHP-only, Java-only) even if the title looks like a match, unless there are no better-fitting offers available.
+6) ELIGIBILITY EXCLUSION: if a job's description explicitly restricts eligibility to a specific country/region or citizenship as a hard requirement (e.g. "must be authorized to work in the US", "US citizens only", "must reside in EU/EEA"), exclude it entirely from the jobs output array. Do not exclude jobs that merely mention a company's HQ location or an optional/preferred location without a hard eligibility restriction.
 
 Return JSON object with key 'jobs' as array of objects:
 - jobId (from job_id)
@@ -1004,6 +1028,9 @@ All those properties must be found in context below. Do not invent properties th
         type: '@n8n/n8n-nodes-langchain.agent',
         version: 3.1,
         position: [2928, 352],
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 2000,
     })
     AgentGenerateApplication = {
         promptType: 'define',
@@ -1424,6 +1451,12 @@ return [
             ai_languageModel: this.OpenaiChatModel.output,
         });
         this.ParseApplicationPack.uses({
+            ai_languageModel: this.OpenaiChatModel.output,
+        });
+        this.ParseProfileIntelligence1.uses({
+            ai_languageModel: this.OpenaiChatModel.output,
+        });
+        this.StructuredOutputParser.uses({
             ai_languageModel: this.OpenaiChatModel.output,
         });
         this.AgentSearchQueriesGeneration.uses({

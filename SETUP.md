@@ -1,0 +1,125 @@
+# Kurulum ve Çalıştırma Rehberi
+
+Bu doküman, bu projeyi sıfırdan (boş bir makinede) alıp n8n otomasyonlarını çalıştırılabilir hale getirmek için gereken **her adımı** listeler. Workflow'ların ne yaptığına dair teknik detay için `n8n.md`'ye, proje geçmişi için `CLAUDE.md`'ye bak.
+
+## 1. Ön Koşullar
+
+- **Docker Desktop** (n8n'i container olarak çalıştırmak için) — https://www.docker.com/products/docker-desktop/
+- **Node.js + npm** (n8n-as-code CLI'ı `npx` ile çalıştırmak için, global kurulum gerekmez) — bu projede test edilen sürüm: Node v25, npm 11
+- Bir **RapidAPI hesabı** (JSearch test workflow'u için, ücretsiz, kredi kartsız)
+- Bir **OpenAI API key** (ücretli, token bazlı — gpt-4o-mini kullanılıyor)
+- Bir **Gmail hesabı** (OAuth2, ücretsiz)
+- Bir **Google Sheets** dosyası (ücretsiz, dedup/loglama için — sadece production workflow'da kullanılıyor)
+- (Opsiyonel, production workflow için) Bir **SerpAPI hesabı** (Google Jobs araması için, aylık ~250 ücretsiz istek)
+
+## 2. n8n'i Docker ile Ayağa Kaldırma
+
+```bash
+docker run -d \
+  --name n8n \
+  -p 5678:5678 \
+  -v ~/.n8n:/home/node/.n8n \
+  docker.n8n.io/n8nio/n8n
+```
+
+- `-v ~/.n8n:/home/node/.n8n` — n8n'in tüm verisini (workflow'lar, credential'lar, execution geçmişi) host makinede kalıcı tutar; container silinse/yeniden başlatılsa bile veri kaybolmaz.
+- Container ayaktayken tarayıcıdan **http://localhost:5678** adresine git.
+- İlk açılışta n8n bir **owner hesabı** oluşturmanı ister (e-posta + şifre) — bu hesap sadece bu local n8n instance'ına özel, üçüncü bir servise bağlı değil.
+
+Container'ı durdurmak/tekrar başlatmak için:
+```bash
+docker stop n8n
+docker start n8n
+```
+
+## 3. Projeyi Klonlama ve CLI Kontrolü
+
+```bash
+git clone https://github.com/denizddogru/n8n-job-search.git
+cd n8n-job-search
+```
+
+`n8nac-config.json` dosyası zaten `localhost:5678`'e işaret edecek şekilde repoda hazır geliyor (environment adı: `local`, workflow'ların path'i: `workflows/local`). Ek bir konfigürasyon gerekmiyor.
+
+`n8nac` global kurulmuyor, her komut `npx --yes n8nac ...` ile çalıştırılıyor (ilk çalıştırmada npm paketini indirir).
+
+## 4. n8n'e API Erişimi Tanımlama
+
+n8nac'ın workflow push/pull/execution komutlarını çalıştırabilmesi için n8n'in kendi API key'ini tanıması gerekiyor:
+
+1. n8n UI'da sağ üstten **Settings → API** bölümüne git, yeni bir **API key** oluştur ve kopyala.
+2. Terminalde:
+   ```bash
+   printf '%s' 'BURAYA_API_KEY' | npx --yes n8nac env auth set --env local --api-key-stdin
+   ```
+   (Key'i doğrudan komut satırına yazmak yerine `printf | ... --api-key-stdin` deseni kullanılıyor, shell geçmişinde düz metin olarak kalmasın diye.)
+
+## 5. Credential'ları n8n'de Oluşturma
+
+Aşağıdaki credential'ların hepsi **n8n UI üzerinden**, `localhost:5678` içinde oluşturulmalı (n8nac CLI'ın credential oluşturma komutları bu ortamda güvenilir sonuç vermiyor — bkz. `CLAUDE.md`).
+
+| Credential | Tür | Nereden alınır | Nasıl eklenir |
+|---|---|---|---|
+| OpenAI | `openAiApi` | platform.openai.com → API keys | n8n UI → Credentials → New → "OpenAi" |
+| Jina AI | `jinaAiApi` | jina.ai → API key (ücretsiz tier var) | n8n UI → Credentials → New → "Jina AI" |
+| Gmail | `gmailOAuth2` | Google OAuth (kendi Gmail hesabın) | n8n UI → Credentials → New → "Gmail" → "Sign in with Google" |
+| Google Sheets | `googleSheetsOAuth2Api` | Aynı Google hesabı | n8n UI → Credentials → New → "Google Sheets" → "Sign in with Google" |
+| SerpAPI (production) | `httpQueryAuth` (genel auth) | serpapi.com → API key | Bu tür global katalogda **görünmez** — `Get job results` node'unu aç → Authentication → "Generic Credential Type" → "HTTP Query Auth" → "Create New" |
+| JSearch/RapidAPI (test workflow) | `httpHeaderAuth` (genel auth) | rapidapi.com → JSearch (OpenWeb Ninja) → Basic (Free) plana subscribe ol → `X-RapidAPI-Key` | Aynı şekilde: `Get JSearch Results (TR)` node'unu aç → Authentication → "Generic Credential Type" → "HTTP Header Auth" → "Create New" → Name: `X-RapidAPI-Key`, Value: kendi anahtarın |
+
+**Not**: `httpQueryAuth`/`httpHeaderAuth` gibi "generic" auth tipleri n8n'in global "Add Credential" kataloğunda listelenmez — sadece onu kullanan bir node'un (HTTP Request node'u) Authentication alanından, o node'un içinden oluşturulabilir.
+
+**Gmail OAuth token'ının 7 günde bir düşmesini önlemek için**: Google Cloud Console → APIs & Services → OAuth consent screen → **Publish App** (Testing modundan Production'a geçir). Aksi halde token 7 günde bir geçersiz olur ve credential'ı tekrar bağlaman gerekir.
+
+## 6. Google Sheet Hazırlama (sadece production workflow için)
+
+Boş bir Google Sheet oluştur, ilk satırına **tam bu sırayla** şu başlıkları yaz:
+
+```
+Tarih | URLS | İlan Adı | Şirket | Site | Çalışma Şekli | Ülke
+```
+
+Sheet'in ID'sini `job-application-assistant.workflow.ts` içindeki `AppendRowInSheet` ve `GetAlreadyProcessedJobsUrls` node'larının `documentId` alanına yaz (veya n8n UI'dan node açıp dropdown'dan seç).
+
+## 7. Workflow'ları n8n'e Push Etme
+
+```bash
+npx --yes n8nac push workflows/local/job-application-assistant.workflow.ts --verify
+npx --yes n8nac push workflows/local/jsearch-turkey-test.workflow.ts --verify
+```
+
+`--verify` bayrağı push sonrası workflow'u n8n'den tekrar çeker, node sayısını ve olası uyarıları/hataları gösterir.
+
+## 8. Kişisel Bilgileri Girme
+
+Her iki workflow'da da `⚙️ Configuration1` node'u (Set node) kişisel bilgileri tutar: `candidateName`, `cvUrlWeb`/`cvUrlPdf` (CV'nin herkese açık bir URL'i olmalı, örn. GitHub raw link), `linkedinUrl`, `githubUrl`, `targetLocation`, `remotePreference`, `minimumSalaryAnnual`. Bunları kendi bilgilerinle güncelleyip tekrar push et.
+
+## 9. Çalıştırma
+
+1. n8n UI'da (`localhost:5678`) ilgili workflow'u aç.
+2. Sol üstten **"Execute Workflow"** butonuna bas (Manual Trigger).
+3. Workflow bitince (production için ~1-2 dk, test workflow için ~30-60 sn):
+   - Production: özet e-posta gelir, Google Sheets'e satırlar eklenir.
+   - Test workflow: özet e-posta gelir (Hollanda/İngiltere .NET ilanları).
+
+## 10. Faydalı CLI Komutları
+
+```bash
+# Workflow'u n8n'den local dosyaya çek (n8n UI'da elle değişiklik yaptıysan)
+npx --yes n8nac pull <workflowId>
+
+# Son çalıştırmaları listele
+npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
+
+# Bir çalıştırmanın tam verisini (hata dahil) incele
+npx --yes n8nac execution get <executionId> --include-data --json
+
+# Bir workflow'un hangi credential'lara ihtiyaç duyduğunu göster
+npx --yes n8nac workflow credential-required <workflowId> --json
+```
+
+## Bilinen Kısıtlar
+
+- **Türkiye kapsamı yok**: Hem SerpAPI (Google Jobs) hem JSearch (RapidAPI), Google'ın kendi "Jobs" özelliğine dayanıyor ve bu özellik Türkiye'de aktif değil — `country=tr` her iki API'de de sıfır sonuç döndürüyor. Bu bir konfigürasyon hatası değil, veri kaynağının kapsam dışı olması.
+- **JSearch `language` parametresi kritik**: `country=nl` gibi İngilizce-olmayan bir pazarda `language=en` bırakılırsa sonuçlar sıfır dönüyor (o ülkenin kendi dilindeki ilanlar filtreleniyor); `language` de hedef ülkenin diline göre ayarlanmalı (örn. Hollanda için `nl`).
+- **JSearch free tier**: ayda ~200 istek, kredi kartsız.
