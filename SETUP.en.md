@@ -62,14 +62,42 @@ All of the credentials below must be created **through the n8n UI**, inside `loc
 |---|---|---|---|
 | OpenAI | `openAiApi` | platform.openai.com → API keys | n8n UI → Credentials → New → "OpenAi" |
 | Jina AI | `jinaAiApi` | jina.ai → API key (has a free tier) | n8n UI → Credentials → New → "Jina AI" |
-| Gmail | `gmailOAuth2` | Google OAuth (your own Gmail account) | n8n UI → Credentials → New → "Gmail" → "Sign in with Google" |
-| Google Sheets | `googleSheetsOAuth2Api` | Same Google account | n8n UI → Credentials → New → "Google Sheets" → "Sign in with Google" |
+| Gmail | `gmailOAuth2` | Google OAuth (your own Gmail account) — do the Cloud Console setup in **5.1** first | n8n UI → Credentials → New → "Gmail" → enter Client ID/Secret → "Sign in with Google" |
+| Google Sheets | `googleSheetsOAuth2Api` | Same Google account, same OAuth client | n8n UI → Credentials → New → "Google Sheets" → enter Client ID/Secret → "Sign in with Google" |
 | SerpAPI (production) | `httpQueryAuth` (generic auth) | serpapi.com → API key | This type does **not** show up in the global catalog — open the `Get job results` node → Authentication → "Generic Credential Type" → "HTTP Query Auth" → "Create New" |
 | JSearch/RapidAPI (test workflow) | `httpHeaderAuth` (generic auth) | rapidapi.com → JSearch (by OpenWeb Ninja) → subscribe to the Basic (Free) plan → `X-RapidAPI-Key` | Same pattern: open the `Get JSearch Results (TR)` node → Authentication → "Generic Credential Type" → "HTTP Header Auth" → "Create New" → Name: `X-RapidAPI-Key`, Value: your key |
 
 **Note**: "Generic" auth types like `httpQueryAuth`/`httpHeaderAuth` are not listed in n8n's global "Add Credential" catalog — they can only be created from inside a node that uses them (an HTTP Request node's Authentication field).
 
 **Note — Gmail OAuth token expires every 7 days**: the OAuth app in Google Cloud Console has intentionally been left in **Testing** mode (a deliberate choice — to switch it to Production: APIs & Services → OAuth consent screen → **Publish App**). In Testing mode, Google invalidates the refresh token every 7 days, so you'll need to periodically (roughly weekly) "reconnect" the Gmail credential in the n8n UI — n8n Credentials → "Gmail account" → "Sign in with Google" again.
+
+### 5.1 Google Cloud Console: OAuth Client Setup for Gmail + Sheets
+
+Gmail and Google Sheets credentials don't work with n8n's own "Sign in with Google" flow (that only exists on n8n Cloud) — for self-hosted n8n you need to **create your own OAuth client in Google Cloud Console**. One OAuth client can be reused for both the Gmail and Sheets credentials (no need to create it twice).
+
+1. **Create a project** — [console.cloud.google.com](https://console.cloud.google.com) → the project dropdown at the top → **"New Project"** → give it a name (e.g. "n8n-job-search") → **Create**. Make sure the new project is selected in the dropdown.
+
+2. **Enable the required APIs** — left sidebar **APIs & Services → Library**:
+   - Search for **Gmail API**, open it, click **Enable**.
+   - Search for **Google Sheets API**, open it, click **Enable**.
+   - (Also enabling the **Google Drive API** is recommended, so the Sheets node's file-picker dropdown works.)
+
+3. **Configure the OAuth consent screen** — **APIs & Services → OAuth consent screen**:
+   - **User type**: choose "External" (the only option unless you have a Google Workspace account).
+   - Enter **App name** (e.g. "n8n Job Search"), **User support email** (your own), **Developer contact email** (your own) → **Save and Continue**.
+   - In the **Scopes** step, add `https://mail.google.com/` (or `gmail.send`) for Gmail, and `https://www.googleapis.com/auth/spreadsheets` for Sheets (n8n already requests these during the OAuth flow itself; Google sometimes wants them listed here too).
+   - In the **Test users** step, **add your own Gmail address** — since the app stays in Testing mode (see the note above), only emails added here can sign in. Skipping this step results in an "access blocked" error.
+   - **Save**.
+
+4. **Create the OAuth Client ID** — **APIs & Services → Credentials → + Create Credentials → OAuth client ID**:
+   - **Application type**: "Web application".
+   - **Name**: e.g. "n8n local".
+   - **Authorized redirect URIs**: paste in the **OAuth Redirect URL** exactly as shown on screen when you create a Gmail credential in n8n. For a local Docker setup this is usually `http://localhost:5678/rest/oauth2-credential/callback` — but copy/paste whatever value n8n actually shows you, to be safe.
+   - Click **Create**.
+
+5. **Get the Client ID / Client Secret** — a dialog shows the **Client ID** and **Client Secret**. **Copy both before closing this dialog** — the Client Secret won't be shown again the same way (if you lose it, you'll need to generate a new one).
+
+6. **Enter them in n8n** — n8n UI → Credentials → the "Gmail" (or "Google Sheets") credential's **Client ID** / **Client Secret** fields → paste them in → **"Sign in with Google"** → sign in with the account you added as a test user in step 3 → approve the permissions.
 
 ## 6. Preparing the Google Sheet (production workflow only)
 

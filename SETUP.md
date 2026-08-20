@@ -62,14 +62,42 @@ Aşağıdaki credential'ların hepsi **n8n UI üzerinden**, `localhost:5678` iç
 |---|---|---|---|
 | OpenAI | `openAiApi` | platform.openai.com → API keys | n8n UI → Credentials → New → "OpenAi" |
 | Jina AI | `jinaAiApi` | jina.ai → API key (ücretsiz tier var) | n8n UI → Credentials → New → "Jina AI" |
-| Gmail | `gmailOAuth2` | Google OAuth (kendi Gmail hesabın) | n8n UI → Credentials → New → "Gmail" → "Sign in with Google" |
-| Google Sheets | `googleSheetsOAuth2Api` | Aynı Google hesabı | n8n UI → Credentials → New → "Google Sheets" → "Sign in with Google" |
+| Gmail | `gmailOAuth2` | Google OAuth (kendi Gmail hesabın) — önce **5.1**'deki Cloud Console kurulumu yapılmalı | n8n UI → Credentials → New → "Gmail" → Client ID/Secret gir → "Sign in with Google" |
+| Google Sheets | `googleSheetsOAuth2Api` | Aynı Google hesabı, aynı OAuth client | n8n UI → Credentials → New → "Google Sheets" → Client ID/Secret gir → "Sign in with Google" |
 | SerpAPI (production) | `httpQueryAuth` (genel auth) | serpapi.com → API key | Bu tür global katalogda **görünmez** — `Get job results` node'unu aç → Authentication → "Generic Credential Type" → "HTTP Query Auth" → "Create New" |
 | JSearch/RapidAPI (test workflow) | `httpHeaderAuth` (genel auth) | rapidapi.com → JSearch (OpenWeb Ninja) → Basic (Free) plana subscribe ol → `X-RapidAPI-Key` | Aynı şekilde: `Get JSearch Results (TR)` node'unu aç → Authentication → "Generic Credential Type" → "HTTP Header Auth" → "Create New" → Name: `X-RapidAPI-Key`, Value: kendi anahtarın |
 
 **Not**: `httpQueryAuth`/`httpHeaderAuth` gibi "generic" auth tipleri n8n'in global "Add Credential" kataloğunda listelenmez — sadece onu kullanan bir node'un (HTTP Request node'u) Authentication alanından, o node'un içinden oluşturulabilir.
 
 **Not — Gmail OAuth token'ı 7 günde bir düşüyor**: Google Cloud Console'daki OAuth uygulaması **Testing** modunda bırakıldı (bilinçli tercih — Production'a geçirmek isteniyorsa: APIs & Services → OAuth consent screen → **Publish App**). Testing modda Google, refresh token'ı 7 günde bir geçersiz kılıyor; bu yüzden n8n UI'da Gmail credential'ını periyodik olarak (yaklaşık haftada bir) "reconnect" etmen gerekiyor — n8n Credentials → "Gmail account" → tekrar "Sign in with Google".
+
+### 5.1 Google Cloud Console: Gmail + Sheets için OAuth Client Kurulumu
+
+Gmail ve Google Sheets credential'ları n8n'in kendi "Sign in with Google" akışıyla çalışmıyor (bu sadece n8n Cloud'da var) — self-hosted n8n'de **kendi OAuth client'ını Google Cloud Console'da oluşturman gerekiyor**. Tek bir OAuth client, hem Gmail hem Sheets credential'ı için kullanılabilir (tekrar oluşturmana gerek yok).
+
+1. **Proje oluştur** — [console.cloud.google.com](https://console.cloud.google.com) → üstteki proje dropdown'ından **"New Project"** → bir isim ver (örn. "n8n-job-search") → **Create**. Oluşan projeyi dropdown'dan seçili hale getir.
+
+2. **Gerekli API'leri etkinleştir** — sol menü **APIs & Services → Library**:
+   - **Gmail API**'yi ara, aç, **Enable**'a bas.
+   - **Google Sheets API**'yi ara, aç, **Enable**'a bas.
+   - (Sheets node'undaki dosya seçim dropdown'ının çalışması için **Google Drive API**'yi de etkinleştirmen önerilir.)
+
+3. **OAuth consent screen'i yapılandır** — **APIs & Services → OAuth consent screen**:
+   - **User type**: "External" seç (Google Workspace hesabın yoksa tek seçenek bu).
+   - **App name** (örn. "n8n Job Search"), **User support email** (kendi e-postan), **Developer contact email** (kendi e-postan) gir → **Save and Continue**.
+   - **Scopes** adımında Gmail için `https://mail.google.com/` (veya `gmail.send`), Sheets için `https://www.googleapis.com/auth/spreadsheets` scope'larını ekle (n8n bunları OAuth akışı sırasında zaten talep eder; Google bazen bu adımda listede görmeni ister).
+   - **Test users** adımında **kendi Gmail adresini ekle** — uygulama Testing modunda kaldığı için (bkz. yukarıdaki not), sadece buraya eklenen e-postalarla giriş yapılabilir. Bu adım atlanırsa "access blocked" hatası alınır.
+   - **Save**.
+
+4. **OAuth Client ID oluştur** — **APIs & Services → Credentials → + Create Credentials → OAuth client ID**:
+   - **Application type**: "Web application".
+   - **Name**: örn. "n8n local".
+   - **Authorized redirect URIs**: n8n'de Gmail credential'ı oluştururken ekranda gösterilen **OAuth Redirect URL**'i buraya birebir yapıştır. Local Docker kurulumu için bu genelde `http://localhost:5678/rest/oauth2-credential/callback` şeklindedir — ama garantiye almak için n8n'in gösterdiği değeri kopyala/yapıştır kullan.
+   - **Create**'e bas.
+
+5. **Client ID / Client Secret'ı al** — açılan pencerede **Client ID** ve **Client Secret** görünür. **Bu pencereyi kapatmadan önce ikisini de kopyala** — Client Secret bir daha aynı şekilde gösterilmiyor (kaybedersen yeni bir secret oluşturman gerekir).
+
+6. **n8n'e gir** — n8n UI → Credentials → "Gmail" (veya "Google Sheets") credential'ının **Client ID** / **Client Secret** alanlarına yapıştır → **"Sign in with Google"** → 3. adımda test user olarak eklediğin hesapla giriş yap → izinleri onayla.
 
 ## 6. Google Sheet Hazırlama (sadece production workflow için)
 
