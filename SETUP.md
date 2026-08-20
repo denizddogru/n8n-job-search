@@ -69,7 +69,7 @@ Aşağıdaki credential'ların hepsi **n8n UI üzerinden**, `localhost:5678` iç
 
 **Not**: `httpQueryAuth`/`httpHeaderAuth` gibi "generic" auth tipleri n8n'in global "Add Credential" kataloğunda listelenmez — sadece onu kullanan bir node'un (HTTP Request node'u) Authentication alanından, o node'un içinden oluşturulabilir.
 
-**Gmail OAuth token'ının 7 günde bir düşmesini önlemek için**: Google Cloud Console → APIs & Services → OAuth consent screen → **Publish App** (Testing modundan Production'a geçir). Aksi halde token 7 günde bir geçersiz olur ve credential'ı tekrar bağlaman gerekir.
+**Not — Gmail OAuth token'ı 7 günde bir düşüyor**: Google Cloud Console'daki OAuth uygulaması **Testing** modunda bırakıldı (bilinçli tercih — Production'a geçirmek isteniyorsa: APIs & Services → OAuth consent screen → **Publish App**). Testing modda Google, refresh token'ı 7 günde bir geçersiz kılıyor; bu yüzden n8n UI'da Gmail credential'ını periyodik olarak (yaklaşık haftada bir) "reconnect" etmen gerekiyor — n8n Credentials → "Gmail account" → tekrar "Sign in with Google".
 
 ## 6. Google Sheet Hazırlama (sadece production workflow için)
 
