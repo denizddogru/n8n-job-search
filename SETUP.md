@@ -146,6 +146,43 @@ npx --yes n8nac execution get <executionId> --include-data --json
 npx --yes n8nac workflow credential-required <workflowId> --json
 ```
 
+## 11. Farklı Bir Rol/Kişi İçin Özelleştirme
+
+Bu otomasyon şu an **.NET/C# arayan bir aday** için sabitlenmiş durumda — bu sabitleme profil çıkarım ajanının kendiliğinden bulduğu bir şey değil, **elle eklenmiş bir kural**. Başka bir rol (örn. "Frontend React Developer" veya "Data Analyst") arayan biri için otomasyonu uyarlamak istersen:
+
+### 1. Claude Code'a ne söylemeli
+
+Şuna benzer bir talimat yeterli: *"Ben .NET değil, [X rolü/stack'i] arıyorum, bu üç sistem mesajındaki .NET/C# odağını ve Java/Python yasağını kaldırıp [X]'e göre güncelle."* Değişmesi gereken, her iki workflow'da da aynı **3 node'un sistem mesajı**:
+
+| Node | Dosyadaki konum | Ne değişmeli |
+|---|---|---|
+| `🎯 Agent: Profile Generation` | `job-application-assistant.workflow.ts:827`, `jsearch-turkey-test.workflow.ts:363` | ".NET / C# (Microsoft stack) — always include '.NET Developer' as a primaryRole. Never include Java or Python..." cümlesi kaldırılıp hedef role göre yeniden yazılmalı |
+| `🔎 Agent: Search Queries generation` | `job-application-assistant.workflow.ts:774,776`, `jsearch-turkey-test.workflow.ts:458-459` | "MUST be a close variant of '.NET developer'" ve "NEVER generate queries for Java or Python" kuralları yeni role göre değişmeli |
+| `🔎 Agent: Jobs selection` (sadece production'da var) | `job-application-assistant.workflow.ts:932` | "TECH STACK FIT" kuralındaki `.NET, C#, ASP.NET` / `Ruby on Rails, Python-only, PHP-only, Java-only` karşılaştırması yeni role göre değişmeli |
+
+Bunun dışında kalan her şey (profil okuma, sorgu üretimi, dijest e-posta, Sheets yazımı) role bağımlı değil — dokunmaya gerek yok.
+
+### 2. CV GitHub'a mı yüklenmeli?
+
+Hayır, GitHub zorunlu değil — tek şart **CV'nin herkese açık, doğrudan erişilebilir bir URL'i olması** (`📖 Jina: Read Profile Source` node'u bu URL'i okuyor, giriş/parola gerektiren bir sayfa okuyamaz). GitHub raw link (bizim kullandığımız yöntem) sadece **ücretsiz ve basit** olduğu için tercih edildi. Alternatifler:
+- Kişisel bir web sitesi/portfolyo sayfasındaki CV linki
+- Dropbox/Google Drive'da **"bağlantıya sahip olan herkes görüntüleyebilir"** olarak paylaşılmış, doğrudan indirme linki (Drive'ın normal paylaşım linki değil — "uc?export=download&id=..." formatına çevrilmesi gerekebilir, aksi halde Jina bir HTML önizleme sayfası okur, PDF içeriğini değil)
+- Notion'da public yapılmış bir sayfa
+
+Kısacası: CV verisi zaten paylaşılmak üzere var olduğu için "herkese açık olması" bir gizlilik riski değil, sadece **doğru formatta erişilebilir olması** önemli.
+
+### 3. OpenAI yerine ücretsiz AI seçenekleri
+
+Şu an `OpenaiChatModel` node'u (`lmChatOpenAi`, model: `gpt-4o-mini`) tüm ajanların beynini oluşturuyor ve **token bazlı ücretli**. Ücretsiz alternatifler (n8n'de ayrı bir "Chat Model" node tipi olarak mevcut, `OpenaiChatModel` node'unun yerine geçer, credential'ı ve tüm `.uses({ ai_languageModel: ... })` bağlantıları değişir):
+
+| Sağlayıcı | n8n node tipi | Ücretsiz tier | Not |
+|---|---|---|---|
+| **Google Gemini** | `@n8n/n8n-nodes-langchain.lmChatGoogleGemini` | Evet, oldukça cömert (Gemini 2.0/2.5 Flash) — Google AI Studio'dan ücretsiz API key | En kolay geçiş, kalite OpenAI gpt-4o-mini'ye yakın/üstün. Önerilen ilk seçenek. |
+| **Groq** | `@n8n/n8n-nodes-langchain.lmChatGroq` | Evet (Llama/Mixtral açık modelleri, çok hızlı) | Ücretsiz tier'da rate limit var ama bu otomasyonun hacmi için yeterli |
+| **Ollama** | `@n8n/n8n-nodes-langchain.lmChatOllama` | Tamamen ücretsiz, sınırsız — ama **kendi makinende çalıştırman** gerekiyor (ek bir Docker container, model indirme, CPU/GPU kaynak tüketimi) | En bağımsız seçenek ama kurulumu en ağır olan |
+
+Değiştirmek istersen Claude Code'a şöyle bir talimat yeterli: *"OpenaiChatModel node'unu Gemini'ye çevir, [X] credential'ını kullan, tüm ajanların bağlantısını güncelle."*
+
 ## Bilinen Kısıtlar
 
 - **Türkiye kapsamı yok**: Hem SerpAPI (Google Jobs) hem JSearch (RapidAPI), Google'ın kendi "Jobs" özelliğine dayanıyor ve bu özellik Türkiye'de aktif değil — `country=tr` her iki API'de de sıfır sonuç döndürüyor. Bu bir konfigürasyon hatası değil, veri kaynağının kapsam dışı olması.

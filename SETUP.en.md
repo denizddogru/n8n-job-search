@@ -146,6 +146,43 @@ npx --yes n8nac execution get <executionId> --include-data --json
 npx --yes n8nac workflow credential-required <workflowId> --json
 ```
 
+## 11. Customizing for a Different Role/Person
+
+This automation is currently hardwired for **a candidate looking for .NET/C# roles** — that's not something the profile-extraction agent figured out on its own, it's a **manually added rule**. If you want to adapt it for someone looking for a different role (e.g. "Frontend React Developer" or "Data Analyst"):
+
+### 1. What to tell Claude Code
+
+Something like this is enough: *"I'm not looking for .NET, I'm looking for [role/stack X] — remove the .NET/C# focus and the Java/Python ban from these three system messages and update them for [X]."* The same **3 nodes' system messages** need to change in both workflows:
+
+| Node | Location in file | What needs to change |
+|---|---|---|
+| `🎯 Agent: Profile Generation` | `job-application-assistant.workflow.ts:827`, `jsearch-turkey-test.workflow.ts:363` | The sentence "...The candidate's primary stack is .NET / C# (Microsoft stack) — always include '.NET Developer' as a primaryRole. Never include Java or Python..." needs to be removed and rewritten for the target role |
+| `🔎 Agent: Search Queries generation` | `job-application-assistant.workflow.ts:774,776`, `jsearch-turkey-test.workflow.ts:458-459` | The "MUST be a close variant of '.NET developer'" rule and the "NEVER generate queries for Java or Python" rule need to change for the new role |
+| `🔎 Agent: Jobs selection` (production only) | `job-application-assistant.workflow.ts:932` | The "TECH STACK FIT" rule's `.NET, C#, ASP.NET` vs. `Ruby on Rails, Python-only, PHP-only, Java-only` comparison needs to change for the new role |
+
+Everything else (profile reading, query generation mechanics, the digest email, writing to Sheets) is role-agnostic — no need to touch it.
+
+### 2. Does the CV have to be hosted on GitHub?
+
+No, GitHub isn't required — the only requirement is that the **CV has a publicly accessible, direct URL** (the `📖 Jina: Read Profile Source` node fetches this URL, and it can't get past a login/password wall). A GitHub raw link (what this project uses) was chosen just because it's **free and simple**. Alternatives:
+- A CV link on your own personal website/portfolio page
+- A Dropbox/Google Drive file shared as **"anyone with the link can view"**, using a direct-download URL (not Drive's normal share link — you'll likely need the `uc?export=download&id=...` format, otherwise Jina reads an HTML preview page instead of the actual PDF content)
+- A page made public in Notion
+
+In short: since a CV is meant to be shared in the first place, making it publicly reachable isn't a privacy concern here — what matters is just that it's **reachable in the right format**.
+
+### 3. Free AI alternatives to OpenAI
+
+Right now, the `OpenaiChatModel` node (`lmChatOpenAi`, model: `gpt-4o-mini`) is the brain behind every agent, and it's **paid, token-based**. Free alternatives exist as separate n8n "Chat Model" node types (they replace `OpenaiChatModel`, and every `.uses({ ai_languageModel: ... })` connection needs to point at the new node and its credential):
+
+| Provider | n8n node type | Free tier | Note |
+|---|---|---|---|
+| **Google Gemini** | `@n8n/n8n-nodes-langchain.lmChatGoogleGemini` | Yes, quite generous (Gemini 2.0/2.5 Flash) — free API key from Google AI Studio | Easiest swap, quality is comparable to/better than OpenAI's gpt-4o-mini. Recommended first choice. |
+| **Groq** | `@n8n/n8n-nodes-langchain.lmChatGroq` | Yes (open Llama/Mixtral models, very fast) | Free tier has rate limits, but they're plenty for this automation's volume |
+| **Ollama** | `@n8n/n8n-nodes-langchain.lmChatOllama` | Fully free, unlimited — but **you have to run it yourself** (an extra Docker container, downloading models, CPU/GPU resource use) | The most independent option, but also the heaviest to set up |
+
+To switch, an instruction like this is enough for Claude Code: *"Switch the OpenaiChatModel node to Gemini, use [X] credential, and update every agent's connection."*
+
 ## Known Limitations
 
 - **No Turkey coverage**: both SerpAPI (Google Jobs) and JSearch (RapidAPI) are backed by Google's own "Jobs" feature, which is not active in Turkey — `country=tr` returns zero results in both APIs. This is not a configuration mistake; the data source itself has no coverage there.
